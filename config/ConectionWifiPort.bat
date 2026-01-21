@@ -1,0 +1,94 @@
+@echo off
+setlocal enabledelayedexpansion
+title Lista de IPs Conectadas - Red WiFi
+color 0A
+
+set maxIPs=10
+
+echo ================================================
+echo    LISTA DE IPs CONECTADAS - RED WiFi
+echo ================================================
+echo.
+
+set "scriptDir=%~dp0"
+set "outputFile=%scriptDir%resultados_ping.txt"
+
+echo Conectando a red WiFi...
+for /f "tokens=2 delims=:" %%a in ('netsh wlan show interfaces ^| findstr /i "SSID"') do (
+    set "ssid=%%a"
+    goto :foundSSID
+)
+:foundSSID
+set "ssid=!ssid:~1!"
+echo Red: !ssid!
+
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "127.0.0.1"') do (
+    set "localIP=%%a"
+    goto :foundIP
+)
+:foundIP
+set "localIP=!localIP:~1!"
+echo Tu IP: !localIP!
+echo.
+
+for /f "tokens=1,2,3 delims=." %%a in ("!localIP!") do (
+    set subnet=%%a.%%b.%%c
+)
+
+echo Escaneando hasta !maxIPs! dispositivos en !subnet!.0/24...
+echo.
+
+echo LISTA DE IPs CONECTADAS (maximo !maxIPs!):
+echo =====================================
+
+set count=0
+
+for /L %%i in (1,1,254) do (
+    if !count! lss !maxIPs! (
+        ping -n 1 -w 100 !subnet!.%%i >nul 2>&1
+        if !errorlevel! equ 0 (
+            set /a count+=1
+            set "foundIPs=!foundIPs! !subnet!.%%i"
+            echo !subnet!.%%i
+        )
+    ) else (
+        goto :scan_complete
+    )
+)
+
+:scan_complete
+echo.
+if !count! equ !maxIPs! (
+    echo Mostrando los primeros !maxIPs! dispositivos encontrados.
+    echo Puede haber mas dispositivos en la red.
+) else (
+    echo Total de dispositivos encontrados: !count!
+)
+echo.
+
+if !count! gtr 0 (
+    echo Midiendo tiempos de ping a los dispositivos encontrados...
+    set "tempFile=%scriptDir%temp_ping.txt"
+    set "sortedFile=%scriptDir%sorted_ping.txt"
+    for %%p in (!foundIPs!) do (
+        for /f "tokens=5 delims== " %%t in ('ping -n 1 -w 1000 %%p ^| find "tiempo="') do (
+            set "pingTime=%%t"
+            set "pingTime=!pingTime:ms=!"
+            echo !pingTime! %%p >> "!tempFile!"
+        )
+    )
+    powershell -command "Get-Content '!tempFile!' | Sort-Object {[int]($_.Split()[0])} | Out-File '!sortedFile!' -Encoding ASCII"
+    echo IPs ordenadas por tiempo de ping ^(menor a mayor^): > "!outputFile!"
+    for /f "tokens=*" %%l in (!sortedFile!) do (
+        for /f "tokens=1,*" %%a in ("%%l") do (
+            echo %%b - %%a ms >> "!outputFile!"
+        )
+    )
+    del "!tempFile!" 2>nul
+    del "!sortedFile!" 2>nul
+    echo Resultados guardados en !outputFile!
+)
+
+call "%scriptDir%EndpointExcecution.bat"
+
+pause
