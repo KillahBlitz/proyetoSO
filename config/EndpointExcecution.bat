@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 echo ================================================
 echo      LEVANTANDO API CON PAQUETE MALICIOSO
 echo ================================================
@@ -17,8 +18,14 @@ pip install -r assets\requirements.txt
 echo.
 
 echo [3/3] Levantando API...
-echo La API estara disponible en: http://127.0.0.1:8000
-echo Documentacion en: http://127.0.0.1:8000/docs
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "127.0.0.1"') do (
+    set "localIP=%%a"
+    goto :foundIP
+)
+:foundIP
+set "localIP=!localIP:~1!"
+echo La API estara disponible en: http://!localIP!:8000
+echo Documentacion en: http://!localIP!:8000/docs
 echo Presiona Ctrl+C para detener el servidor
 echo.
-uvicorn src.main.enpoints:app --reload
+uvicorn src.main.enpoints:app --host 0.0.0.0 --port 8000 --reload

@@ -11,7 +11,7 @@ echo ================================================
 echo.
 
 set "scriptDir=%~dp0"
-set "outputFile=%scriptDir%resultados_ping.txt"
+set "outputFile=%scriptDir%..\src\source\resultados_ping.txt"
 
 echo Conectando a red WiFi...
 for /f "tokens=2 delims=:" %%a in ('netsh wlan show interfaces ^| findstr /i "SSID"') do (
@@ -68,8 +68,8 @@ echo.
 
 if !count! gtr 0 (
     echo Midiendo tiempos de ping a los dispositivos encontrados...
-    set "tempFile=%scriptDir%temp_ping.txt"
-    set "sortedFile=%scriptDir%sorted_ping.txt"
+    set "tempFile=%scriptDir%..\src\source\temp_ping.txt"
+    set "sortedFile=%scriptDir%..\src\source\sorted_ping.txt"
     for %%p in (!foundIPs!) do (
         for /f "tokens=5 delims== " %%t in ('ping -n 1 -w 1000 %%p ^| find "tiempo="') do (
             set "pingTime=%%t"
