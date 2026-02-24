@@ -35,14 +35,6 @@ fi
 
 echo -e "${GREEN}[OK]${NC} Interfaz WiFi: ${WIFI}"
 echo ""
-
-# Verificar soporte para Access Point (opcional, comentado para probar)
-# WIFI_PHY=$(iw dev ${WIFI} info 2>/dev/null | grep wiphy | awk '{print $2}')
-# if [ -n "$WIFI_PHY" ] && ! iw phy ${WIFI_PHY} info 2>/dev/null | grep -q "AP"; then
-#     echo -e "${RED}[ERROR]${NC} La interfaz WiFi no soporta modo Access Point"
-#     exit 1
-# fi
-
 echo -e "${GREEN}[OK]${NC} Verificación AP omitida (prueba)"
 echo ""
 
@@ -157,7 +149,6 @@ cleanup() {
     ip link set ${WIFI} down
     nmcli device set ${WIFI} managed yes 2>/dev/null
     systemctl start systemd-resolved 2>/dev/null
-    # Limpiar reglas de internet sharing
     iptables -t nat -D POSTROUTING -o $INTERFAZ_INET -j MASQUERADE 2>/dev/null
     iptables -D FORWARD -i $WIFI -o $INTERFAZ_INET -j ACCEPT 2>/dev/null
     iptables -D FORWARD -i $INTERFAZ_INET -o $WIFI -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null
