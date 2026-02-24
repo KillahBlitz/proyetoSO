@@ -1,94 +1,75 @@
 @echo off
 setlocal enabledelayedexpansion
-title Lista de IPs Conectadas - Red WiFi
+
+cls
+color 0B
+echo ================================================
+echo   MONITOR DE MOBILE HOTSPOT
+echo   Compatible con Intel Wi-Fi 6 AX200
+echo ================================================
+echo.
+echo INSTRUCCIONES:
+echo.
+echo 1. Abre Configuracion de Windows (Win + I)
+echo 2. Ve a: Red e Internet ^> Zona con cobertura inalambrica movil
+echo 3. Activa: "Compartir mi conexion a Internet"
+echo 4. Configura el nombre de red y contrasena
+echo.
+echo Una vez activado el hotspot, presiona cualquier tecla...
+pause >nul
+
+cls
 color 0A
+echo ================================================
+echo   MONITOREANDO IPs CONECTADAS
+echo   (Actualizando cada 5 segundos)
+echo   Presiona Ctrl+C para detener
+echo ================================================
+echo.
 
-set maxIPs=10
+:MONITOR
+cls
+echo ================================================
+echo   MONITOR ACTIVO - %date% %time%
+echo ================================================
+echo.
+
+echo [INFO] Detectando configuracion del hotspot...
+ipconfig | findstr /C:"192.168.137" /C:"192.168.173"
+echo.
+
+echo [Tabla ARP completa - Todas las IPs detectadas:]
+echo.
+arp -a
+echo.
 
 echo ================================================
-echo    LISTA DE IPs CONECTADAS - RED WiFi
+echo [DISPOSITIVOS CONECTADOS AL HOTSPOT:]
 echo ================================================
 echo.
 
-set "scriptDir=%~dp0"
-set "outputFile=%scriptDir%..\src\source\resultados_ping.txt"
+set "count=0"
 
-echo Conectando a red WiFi...
-for /f "tokens=2 delims=:" %%a in ('netsh wlan show interfaces ^| findstr /i "SSID"') do (
-    set "ssid=%%a"
-    goto :foundSSID
-)
-:foundSSID
-set "ssid=!ssid:~1!"
-echo Red: !ssid!
-
-for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "127.0.0.1"') do (
-    set "localIP=%%a"
-    goto :foundIP
-)
-:foundIP
-set "localIP=!localIP:~1!"
-echo Tu IP: !localIP!
-echo.
-
-for /f "tokens=1,2,3 delims=." %%a in ("!localIP!") do (
-    set subnet=%%a.%%b.%%c
-)
-
-echo Escaneando hasta !maxIPs! dispositivos en !subnet!.0/24...
-echo.
-
-echo LISTA DE IPs CONECTADAS (maximo !maxIPs!):
-echo =====================================
-
-set count=0
-
-for /L %%i in (1,1,254) do (
-    if !count! lss !maxIPs! (
-        ping -n 1 -w 100 !subnet!.%%i >nul 2>&1
-        if !errorlevel! equ 0 (
-            set /a count+=1
-            set "foundIPs=!foundIPs! !subnet!.%%i"
-            echo !subnet!.%%i
-        )
-    ) else (
-        goto :scan_complete
+for /f "tokens=1,2" %%a in ('arp -a ^| findstr /R "192\.168\. 172\."') do (
+    echo %%a | findstr /V "192.168.137.1 192.168.173.1 224.0.0 255.255" >nul
+    if !errorlevel! equ 0 (
+        echo   [DISPOSITIVO] IP: %%a   MAC: %%b
+        set /a count+=1
     )
 )
 
-:scan_complete
 echo.
-if !count! equ !maxIPs! (
-    echo Mostrando los primeros !maxIPs! dispositivos encontrados.
-    echo Puede haber mas dispositivos en la red.
+if !count! equ 0 (
+    echo   [Sin dispositivos conectados aun]
+    echo   [Esperando conexiones...]
+    echo.
+    echo   NOTA: Conecta un dispositivo a tu hotspot WiFi
 ) else (
-    echo Total de dispositivos encontrados: !count!
+    echo   Total de dispositivos: !count!
 )
+
 echo.
-
-if !count! gtr 0 (
-    echo Midiendo tiempos de ping a los dispositivos encontrados...
-    set "tempFile=%scriptDir%..\src\source\temp_ping.txt"
-    set "sortedFile=%scriptDir%..\src\source\sorted_ping.txt"
-    for %%p in (!foundIPs!) do (
-        for /f "tokens=5 delims== " %%t in ('ping -n 1 -w 1000 %%p ^| find "tiempo="') do (
-            set "pingTime=%%t"
-            set "pingTime=!pingTime:ms=!"
-            echo !pingTime! %%p >> "!tempFile!"
-        )
-    )
-    powershell -command "Get-Content '!tempFile!' | Sort-Object {[int]($_.Split()[0])} | Out-File '!sortedFile!' -Encoding ASCII"
-    echo IPs ordenadas por tiempo de ping ^(menor a mayor^): > "!outputFile!"
-    for /f "tokens=*" %%l in (!sortedFile!) do (
-        for /f "tokens=1,*" %%a in ("%%l") do (
-            echo %%b - %%a ms >> "!outputFile!"
-        )
-    )
-    del "!tempFile!" 2>nul
-    del "!sortedFile!" 2>nul
-    echo Resultados guardados en !outputFile!
-)
-
-call "%scriptDir%EndpointExcecution.bat"
-
-pause
+echo ================================================
+echo Proxima actualizacion en 5 segundos...
+timeout /t 5 /nobreak >nul
+goto MONITOR
