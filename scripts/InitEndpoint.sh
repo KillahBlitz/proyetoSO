@@ -65,4 +65,13 @@ echo "Documentacion en: http://$local_ip:8000/docs"
 echo "Presiona Ctrl+C para detener el servidor"
 echo
 
+# Abrir nueva consola para enviar mensaje
+if command -v kitty >/dev/null 2>&1; then
+    kitty --title "Enviar Mensaje" -e bash -c "cd '$PROJECT_ROOT' && ./scripts/SendToMessage.sh $local_ip 8000; exec bash" &
+elif command -v gnome-terminal >/dev/null 2>&1; then
+    gnome-terminal -- bash -c "cd '$PROJECT_ROOT' && ./scripts/SendToMessage.sh $local_ip 8000; exec bash" &
+elif command -v xterm >/dev/null 2>&1; then
+    xterm -e bash -c "cd '$PROJECT_ROOT' && ./scripts/SendToMessage.sh $local_ip 8000; exec bash" &
+fi
+
 uvicorn src.main.enpoints:app --host "$local_ip" --port 8000 --reload
