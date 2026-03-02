@@ -55,9 +55,9 @@ kitty --title "Monitor Hotspot" -e bash -c "cd '$PROJECT_ROOT' && sudo '$SCRIPT_
 MONITOR_PID=$!
 sleep 1
 
-# Abrir ventana 2: InitEndpoint
+# Abrir ventana 2: SendToMessage
 echo -e "${BLUE}Iniciando InitEndpoint.sh...${NC}"
-kitty --title "Endpoint" -e bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/InitEndpoint.sh'; exec bash" &
+kitty --title "Endpoint" -e bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/SendToMessage.sh'; exec bash" &
 ENDPOINT_PID=$!
 sleep 1
 
