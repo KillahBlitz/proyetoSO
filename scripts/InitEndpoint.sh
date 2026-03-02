@@ -3,7 +3,7 @@
 set -e
 
 echo "================================================"
-echo "     LEVANTANDO API CON PAQUETE MALICIOSO"
+echo "     LEVANTANDO API SOLO EN ACCESS POINT"
 echo "================================================"
 echo
 
@@ -12,7 +12,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-echo "[1/3] Activando entorno virtual..."
+echo "[1/4] Desactivando firewall..."
+sudo firewall-cmd --zone=trusted --add-interface=wlp1s0 --permanent
+sudo firewall-cmd --reload
+echo
+
+echo "[2/4] Activando entorno virtual..."
 if [ -f ".venv/bin/activate" ]; then
 	# shellcheck disable=SC1091
 	. ".venv/bin/activate"
@@ -23,38 +28,41 @@ else
 fi
 echo
 
-echo "[2/3] Instalando dependencias..."
+echo "[3/4] Instalando dependencias..."
 pip install -r assets/requirements.txt
 echo
 
-echo "[3/3] Levantando API..."
-echo "IMPORTANTE: Ejecuta este script desde un terminal del SISTEMA REAL (no VS Code)"
-echo "para que pueda acceder a las interfaces de red del hotspot."
+echo "[4/4] Detectando Access Point activo..."
 echo
 
-# Verificar si hay un hotspot activo de NetworkManager
+# Detectar hotspot activo creado por NetworkManager
 HOTSPOT_INTERFACE=$(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null | grep "wifi:connected" | cut -d: -f1)
 
 if [ -n "$HOTSPOT_INTERFACE" ]; then
-    # Obtener IP del hotspot de NetworkManager
-    HOTSPOT_IP=$(ip -4 addr show $HOTSPOT_INTERFACE 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
+    HOTSPOT_IP=$(ip -4 addr show "$HOTSPOT_INTERFACE" 2>/dev/null \
+        | grep -oP '(?<=inet\s)\d+(\.\d+){3}' \
+        | head -n1)
+
     if [ -n "$HOTSPOT_IP" ]; then
         local_ip="$HOTSPOT_IP"
-        echo "HOTSPOT DE FEDORA DETECTADO: La API escuchara en $HOTSPOT_IP (interfaz $HOTSPOT_INTERFACE)"
-        echo "Accede desde dispositivos conectados al hotspot de Fedora"
+        echo "HOTSPOT DETECTADO"
+        echo "Interfaz: $HOTSPOT_INTERFACE"
+        echo "IP del Access Point: $HOTSPOT_IP"
+        echo "La API solo sera accesible desde dispositivos conectados a este hotspot"
     else
-        local_ip="0.0.0.0"
-        echo "HOTSPOT DETECTADO pero no se pudo obtener IP, usando todas las interfaces"
+        echo "No se pudo obtener la IP del hotspot. Abortando por seguridad."
+        exit 1
     fi
 else
-    local_ip="0.0.0.0"
-    echo "HOTSPOT NO DETECTADO: La API escuchara en todas las interfaces"
-    echo "Activa el hotspot desde Configuración → WiFi → Punto de Acceso"
+    echo "No hay hotspot activo."
+    echo "La API solo escuchara en localhost por seguridad."
+    local_ip="127.0.0.1"
 fi
 
-echo "La API estara disponible en: http://$local_ip:8000"
+echo
+echo "API disponible en: http://$local_ip:8000"
 echo "Documentacion en: http://$local_ip:8000/docs"
 echo "Presiona Ctrl+C para detener el servidor"
 echo
 
-uvicorn src.main.enpoints:app --host $local_ip --port 8000 --reload
+uvicorn src.main.enpoints:app --host "$local_ip" --port 8000 --reload
