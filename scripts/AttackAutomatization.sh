@@ -1,52 +1,75 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-set -euo pipefail
+# Script de automatización de ataque
+# Abre dos ventanas de kitty: una para monitorear el hotspot y otra para el endpoint
 
+# Colores
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+echo "========================================"
+echo "  Automatización de Ataque"
+echo "========================================"
+echo ""
+
+# Verificar que kitty esté instalado
+if ! command -v kitty &> /dev/null; then
+    echo -e "${RED}ERROR: kitty no está instalado.${NC}"
+    echo "Instala kitty con: sudo dnf install kitty"
+    exit 1
+fi
+
+# Obtener el directorio del script actual
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WIFI_SCRIPT="$SCRIPT_DIR/WifiPortLinux.sh"
-ENDPOINT_SCRIPT="$SCRIPT_DIR/InitEndpoint.sh"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-if [[ ! -f "$WIFI_SCRIPT" ]]; then
-	echo "[ERROR] No existe: $WIFI_SCRIPT"
-	exit 1
+# Verificar que los scripts existen
+if [ ! -f "$SCRIPT_DIR/MonitorHotspot.sh" ]; then
+    echo -e "${RED}ERROR: No se encontró MonitorHotspot.sh${NC}"
+    exit 1
 fi
 
-if [[ ! -f "$ENDPOINT_SCRIPT" ]]; then
-	echo "[ERROR] No existe: $ENDPOINT_SCRIPT"
-	exit 1
+if [ ! -f "$SCRIPT_DIR/InitEndpoint.sh" ]; then
+    echo -e "${RED}ERROR: No se encontró InitEndpoint.sh${NC}"
+    exit 1
 fi
 
-chmod +x "$WIFI_SCRIPT" "$ENDPOINT_SCRIPT"
+# Verificar permisos de ejecución
+chmod +x "$SCRIPT_DIR/MonitorHotspot.sh" 2>/dev/null
+chmod +x "$SCRIPT_DIR/InitEndpoint.sh" 2>/dev/null
 
-echo "==============================================="
-echo "  INICIANDO WifiPortLinux + InitEndpoint"
-echo "==============================================="
-echo
+echo -e "${GREEN}✓ Scripts encontrados${NC}"
+echo ""
+echo -e "${YELLOW}Abriendo ventanas...${NC}"
+echo ""
+echo "1. Monitor de Hotspot (ventana 1)"
+echo "2. Endpoint (ventana 2)"
+echo ""
 
-echo "[1/2] Levantando hotspot (requiere sudo)..."
-if [[ "${EUID}" -eq 0 ]]; then
-	"$WIFI_SCRIPT" &
-else
-	sudo "$WIFI_SCRIPT" &
-fi
-WIFI_PID=$!
+# Abrir ventana 1: Monitor de Hotspot
+echo -e "${BLUE}Iniciando MonitorHotspot.sh...${NC}"
+kitty --title "Monitor Hotspot" -e bash -c "cd '$PROJECT_ROOT' && sudo '$SCRIPT_DIR/MonitorHotspot.sh'" &
+MONITOR_PID=$!
+sleep 1
 
-sleep 2
-if ! kill -0 "$WIFI_PID" 2>/dev/null; then
-	echo "[ERROR] WifiPortLinux no pudo iniciar."
-	exit 1
-fi
+# Abrir ventana 2: InitEndpoint
+echo -e "${BLUE}Iniciando InitEndpoint.sh...${NC}"
+kitty --title "Endpoint" -e bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/InitEndpoint.sh'; exec bash" &
+ENDPOINT_PID=$!
+sleep 1
 
-cleanup() {
-	echo
-	echo "Deteniendo procesos..."
-	if kill -0 "$WIFI_PID" 2>/dev/null; then
-		kill -TERM "$WIFI_PID" 2>/dev/null || true
-		wait "$WIFI_PID" 2>/dev/null || true
-	fi
-}
+echo ""
+echo -e "${GREEN}✓ Ventanas abiertas exitosamente${NC}"
+echo ""
+echo "PIDs:"
+echo "  Monitor Hotspot: $MONITOR_PID"
+echo "  Endpoint: $ENDPOINT_PID"
+echo ""
+echo -e "${YELLOW}Presiona Ctrl+C para cerrar este script (las ventanas permanecerán abiertas)${NC}"
+echo ""
 
-trap cleanup EXIT INT TERM
-
-echo "[2/2] Levantando API..."
-"$ENDPOINT_SCRIPT"
+# Esperar a que termine (opcional)
+wait
