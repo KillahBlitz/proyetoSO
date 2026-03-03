@@ -79,7 +79,9 @@ const goToToken = async () => {
               id="email"
               v-model="email"
               type="email"
-              placeholder="ejemplo@alumno.ipn.mx"
+              placeholder="ejemplo2024@alumno.ipn.mx"
+              pattern="^[a-zA-Z0-9._-]*[0-9]+@alumno\.ipn\.mx$"
+              title="Debe ser un correo válido con formato: *[números]@alumno.ipn.mx"
               class="form-input"
               required
             />
