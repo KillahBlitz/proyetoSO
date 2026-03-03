@@ -13,9 +13,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "[1/5] Desactivando firewall..."
-sudo firewall-cmd --zone=trusted --add-interface=wlp1s0 --permanent
-sudo firewall-cmd --reload
-echo
+# SI HAY PROBLEMAS CON EL FIREWALL, DESCOMENTAR ESTAS LINEAS PARA PERMITIR TODO EL TRÁFICO EN LA INTERFAZ DEL HOTSPOT
+#sudo firewall-cmd --zone=trusted --add-interface=wlp1s0 --permanent
+#sudo firewall-cmd --reload
+#echo
 
 echo "[2/5] Activando entorno virtual..."
 if [ -f ".venv/bin/activate" ]; then
@@ -65,7 +66,6 @@ echo "Documentacion en: http://$local_ip:8000/docs"
 echo "Presiona Ctrl+C para detener el servidor"
 echo
 
-# Guardar IP y puerto en archivo temporal para que otros scripts puedan leerlo
 ENDPOINT_INFO_FILE="/tmp/endpoint_info.txt"
 echo "IP=$local_ip" > "$ENDPOINT_INFO_FILE"
 echo "PORT=8000" >> "$ENDPOINT_INFO_FILE"
@@ -78,9 +78,10 @@ cd "$PROJECT_ROOT/frontend"
 echo "Instalando dependencias de npm..."
 npm install
 echo "Iniciando servidor de desarrollo en $local_ip:3000"
-npm run dev -- --host "$local_ip" --port 3000 &
+npm run dev -- --host 0.0.0.0 --port 3000 &
 echo "Frontend disponible en: http://$local_ip:3000"
 echo "FRONTEND_URL=http://$local_ip:3000" >> "$ENDPOINT_INFO_FILE"
+
 
 export PYTHONPATH="$PROJECT_ROOT"
 uvicorn src.main.enpoints:app --host "$local_ip" --port 8000 --reload
