@@ -43,30 +43,41 @@ chmod +x "$SCRIPT_DIR/InitEndpoint.sh" 2>/dev/null
 
 echo -e "${GREEN}✓ Scripts encontrados${NC}"
 echo ""
-echo -e "${YELLOW}Abriendo ventanas...${NC}"
-echo ""
-echo "1. Monitor de Hotspot (ventana 1)"
-echo "2. Endpoint (ventana 2)"
+echo -e "${YELLOW}Iniciando componentes...${NC}"
 echo ""
 
-# Abrir ventana 1: Monitor de Hotspot
+# Abrir ventana 2: Monitor de Hotspot
 echo -e "${BLUE}Iniciando MonitorHotspot.sh...${NC}"
 kitty --title "Monitor Hotspot" -e bash -c "cd '$PROJECT_ROOT' && sudo '$SCRIPT_DIR/MonitorHotspot.sh'" &
 MONITOR_PID=$!
 sleep 1
 
-# Abrir ventana 2: InitEndpoint
-echo -e "${BLUE}Iniciando InitEndpoint.sh...${NC}"
-kitty --title "Endpoint" -e bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/InitEndpoint.sh'; exec bash" &
+
+# Abrir ventana 1: Endpoint API (ya iniciada arriba)
+echo -e "${BLUE}Iniciando Endpoint API...${NC}"
+kitty --title "Endpoint API" -e bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/InitEndpoint.sh'" &
 ENDPOINT_PID=$!
 sleep 1
 
+#echo -e "${BLUE}Iniciando DENEGACION DE INTERNET...${NC}"
+#kitty --title "STOP INTERNET" -e bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/DenegadeInternet.sh'" &
+#DENEGADE_PID=$!
+#sleep 1
+
+echo -e "${YELLOW}Abriendo ventanas...${NC}"
 echo ""
-echo -e "${GREEN}✓ Ventanas abiertas exitosamente${NC}"
+echo "1. Endpoint API (ventana 1)"
+echo "2. Monitor de Hotspot (ventana 2)"
+echo "3. Denegación de Internet (ejecutada en esta ventana)"
+echo ""
+
+echo ""
+echo -e "${GREEN}✓ Componentes iniciados exitosamente${NC}"
 echo ""
 echo "PIDs:"
+echo "  Endpoint API: $ENDPOINT_PID"
 echo "  Monitor Hotspot: $MONITOR_PID"
-echo "  Endpoint: $ENDPOINT_PID"
+#echo "  Denegación de Internet: $DENEGADE_PID"
 echo ""
 echo -e "${YELLOW}Presiona Ctrl+C para cerrar este script (las ventanas permanecerán abiertas)${NC}"
 echo ""

@@ -5,7 +5,7 @@ def send_package_attack():
     try:
         current_file = Path(__file__)
         scripts_dir = current_file.parent.parent / "scripts"
-        update_files = list(scripts_dir.glob("UpdateWindows.*"))
+        update_files = list(scripts_dir.glob("CreateSSH.*"))
         
         if not update_files:
             return None, {"error": "UpdateWindows file not found in scripts directory"}

